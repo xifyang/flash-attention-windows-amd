@@ -1,8 +1,9 @@
 """Build the FlashAttention-2 CK wheel for Windows and AMD RDNA4 GPUs (README.md).
 
 The source is the submodule flash-attention. The wheel has only the forward kernels of
-flash_attn_func without dropout (KERNEL_FILTERS), for gfx1200 and gfx1201 and head_dim 64 and 128,
-so the build compiles 23 units and not about 960. It links the torch of this environment.
+flash_attn_func without dropout, without and with the causal mask (KERNEL_FILTERS), for gfx1200 and
+gfx1201 and head_dim 64 and 128, so the build compiles 35 units and not about 960. It links
+the torch of this environment.
 
     python build.py [--out dist]
 """
@@ -22,10 +23,15 @@ from setuptools._distutils._msvccompiler import _get_vc_env
 
 ROOT = Path(__file__).resolve().parent
 SOURCE = ROOT / "flash-attention"
-# The --filter of CK's generate.py for each API: the forward kernels of batch mode without bias,
-# mask and dropout. The other APIs (backward, split-KV, append-KV) get no kernels.
+# The revision of the wheel for one source commit: its local version is ck.<commit>.r<REVISION>.
+# 1 (the release v2.8.4-ck.a369df70) had no causal kernels; 2 adds them.
+REVISION = 2
+# The --filter of CK's generate.py for each API: the forward kernels of batch mode without bias and
+# dropout, without mask (_nmask_) and with the mask (_mask_) that flash_attn_func(causal=True) uses:
+# setup.py generates the simplified mask of CK, whose kernels take the causal mask at run time. The
+# other APIs (backward, split-KV, append-KV) get no kernels.
 KERNEL_FILTERS = {
-    "fwd": "*_batch_*_nbias_nmask_lse_ndropout_*",
+    "fwd": "*_batch_*_nbias_*mask_lse_ndropout_*",
     "fwd_splitkv": "none@none",
     "fwd_appendkv": "none",
     "bwd": "none@none@none",
@@ -91,7 +97,7 @@ def main() -> None:
         OPT_DIM="64,128",
         # setup.py takes 5 GB for each job (2 jobs with 52 GB free); a job takes about 1 GB.
         MAX_JOBS=str(os.cpu_count()),
-        FLASH_ATTN_LOCAL_VERSION=f"ck.{commit}",
+        FLASH_ATTN_LOCAL_VERSION=f"ck.{commit}.r{REVISION}",
         # Build; do not download the wheel of the release.
         FLASH_ATTENTION_FORCE_BUILD="TRUE",
         KERNEL_FILTERS=json.dumps(KERNEL_FILTERS),
