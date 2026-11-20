@@ -1,0 +1,9 @@
+# update = none: clone --recursive does not check it out (its nested submodules have paths that are
+# too long for Windows). build.py checks it out with --checkout. ignore = dirty: the build writes
+# its generated sources into it.
+[submodule "flash-attention"]
+	path = flash-attention
+	url = https://github.com/ROCm/flash-attention.git
+	branch = ck_improve_main
+	update = none
+	ignore = dirty
